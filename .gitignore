@@ -1,0 +1,19 @@
+# STM32CubeIDE
+.settings/
+.metadata/
+
+# Build folders
+Debug/
+Release/
+*/Debug/
+*/Release/
+
+# Object files
+*.o
+*.d
+
+# Binary files
+*.elf
+*.bin
+*.hex
+*.map
