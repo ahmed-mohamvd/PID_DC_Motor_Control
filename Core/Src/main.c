@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -45,8 +46,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-int32_t encoder_count;
-char msg[50];
+volatile int32_t encoder_count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -89,10 +89,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_USART1_UART_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-  HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -104,16 +106,19 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
 	  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, GPIO_PIN_RESET);
+	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 500);
 
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 800);
+	  static int32_t last_count = 0;
+	  int32_t delta = encoder_count - last_count;
+	  last_count = encoder_count;
 
-	  encoder_count = __HAL_TIM_GET_COUNTER(&htim2);
+	  // نفترض PPR = 341 (شائع في geared motors)
+	  int32_t rpm = (int32_t)((delta * 600.0f) / 341.0f);
 
-	  sprintf(msg,"Encoder:%lu\r\n", encoder_count);
-
-	  HAL_UART_Transmit(&huart1,(uint8_t*)msg,strlen(msg),100);
-
-	  HAL_Delay(200);
+	  char msg[50];
+	  sprintf(msg, "RPM: %ld\r\n", rpm);
+	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), 100);
+	  HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
@@ -158,6 +163,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if(GPIO_Pin == GPIO_PIN_0)
+    {
+        uint8_t A = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
+        uint8_t B = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1);
+        if(A == B) encoder_count++;
+        else encoder_count--;
+    }
+}
 /* USER CODE END 4 */
 
 /**
